@@ -1,0 +1,49 @@
+I cannot directly create or write files to your Drive or local file system. However, the complete technical specification, design parameters, and architectural blueprint compiled from our strategic planning session are presented below. You can copy this text block directly and save it manually as a `NextUp.md` file in your preferred workspace or repository.
+
+# Seasonal Astronomical Clock Project Specification
+
+## 1\. Interface Design & Visual Layout
+
+  * **Visual Horizon:** A dark purple line splits the clock layout horizontally at the exact midpoint.
+  * **Sky & Earth Representation:** The canvas region above the horizon represents the sky (rendered in blue with grass elements at the line boundary), while the lower half represents the Earth.
+  * **Temporal Anchors:** Midday (12PM) is pinned to the absolute top of the interface, and Midnight (12AM) is pinned to the absolute bottom.
+  * **Sun Progression:** The sun element traverses the sky in an **anticlockwise** (counter-clockwise) trajectory, progressing from 12PM to 3PM (positioned on the left hemisphere where 9 o'clock sits on a traditional clock), and moving down toward the 6PM sunset boundary.
+  * **Dynamic Night Lighting:** When the sun element drops beneath the purple horizon line to simulate night, the background or sun graphic transitions into a dark orange hue.
+
+## 2\. Interactive Calendar Timeline
+
+  * **Visual Indicators:** Individual calendar appointments or reminder entries are mapped directly onto the circular timeline path as small, high-contrast orange dots.
+  * **Touch Targets (Hit Testing):** The circular path uses a touch gesture listener. When a tap coordinate falls within a predefined pixel radius (e.g., a 24dp bounding box) of an orange dot's coordinates, an interactive state is triggered.
+  * **Information Pop-outs:** Confirming a touch match renders an animated context card or overlay modal directly adjacent to the tapped dot, displaying the embedded title and notes of that specific calendar entry.
+
+## 3\. Mathematical Coordinate Mapping (Anticlockwise Path)
+
+To plot standard time onto the custom counter-clockwise coordinate system, time must be converted via standard trigonometry using modified angles:
+
+  * **Base Offset:** Top dead center (12PM) maps to `90°` (or `-90°` depending on your graphics canvas coordinate system orientation where Y-axis points downward).
+  * **Directional Vector:** As chronological time increases, the angular rotation must move in the negative direction (subtracting from the base angle) to yield an anticlockwise sweep.
+  * **Coordinate Extraction:**
+    ``` 
+    x = center_x + radius * cos(computed_angle)
+    y = center_y + radius * sin(computed_angle)
+    
+    ```
+
+## 4\. Multi-Tenant Cloud Architecture
+
+  * **Hosting Platform:** Supabase (PostgreSQL Backend-as-a-Service) is selected for rapid authentication and native data isolation.
+  * **Data Security (Row-Level Security):** PostgreSql RLS policies ensure that users can exclusively read or mutate records within the `reminders` table that contain their matching authenticated `user_id` token.
+  * **Core Database Tables:**
+      * `users`: Handled automatically via Supabase Auth. Extended metadata handles trial/subscription lifecycle states.
+      * `reminders`: Contains `id` (UUID, Primary Key), `user_id` (Foreign Key referencing users), `note_text` (Text), `event_time` (Timestamp with time zone), and `created_at`.
+
+## 5\. Monetization & Paywall Workflow
+
+  * **Tier Parameters:** A strict 48-hour unrestricted free trial period transitioning into a recurring subscription priced at $5.00 for every 3 months of access.
+  * **State Verification Logic:** Upon every initial application launch or session authentication, a middleware verification step computes the time elapsed since the user's `trial_started_at` timestamp.
+  * **Access Control:** If the duration exceeds 48 hours and the payment status is not flagged as active, the application intercepts the core UI render layer and pushes a payment paywall overlay.
+  * **Payment Integration:** Stripe or Braintree handles transaction processing. A secure web API endpoint intercepts `invoice.payment_succeeded` cryptographic webhooks from the payment provider to automatically increment the user's `subscription_ends_at` timestamp by exactly 3 months.
+
+-----
+
+Would you like me to write out the raw PostgreSQL database schema scripts including the Row-Level Security rules discussed in section 4 so you have them ready for your backend setup?
