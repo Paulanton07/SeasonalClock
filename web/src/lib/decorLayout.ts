@@ -1,10 +1,11 @@
-// Deterministic "random" scenery layout so clouds/stars/leaves/snow sit in
-// stable positions across renders instead of jumping around every tick.
+// Deterministic scenery layout using normalized (0..1) coordinates so
+// clouds, stars, flora, and soil textures dynamically fill any screen size
+// (mobile portrait, desktop widescreen, tablet) in stable positions.
 
-interface DecorPoint {
+export interface NormalizedDecorPoint {
   id: number;
-  x: number;
-  y: number;
+  xPct: number; // 0..1
+  yPct: number; // 0..1
   scale: number;
   phase: number;
 }
@@ -20,27 +21,29 @@ function mulberry32(seed: number) {
   };
 }
 
-function makePoints(
+function makeNormalizedPoints(
   count: number,
   seed: number,
   xRange: [number, number],
   yRange: [number, number],
-): DecorPoint[] {
+): NormalizedDecorPoint[] {
   const random = mulberry32(seed);
   return Array.from({ length: count }, (_, id) => ({
     id,
-    x: xRange[0] + random() * (xRange[1] - xRange[0]),
-    y: yRange[0] + random() * (yRange[1] - yRange[0]),
-    scale: 0.6 + random() * 0.8,
+    xPct: xRange[0] + random() * (xRange[1] - xRange[0]),
+    yPct: yRange[0] + random() * (yRange[1] - yRange[0]),
+    scale: 0.7 + random() * 0.7,
     phase: random() * Math.PI * 2,
   }));
 }
 
-// Layout ranges match the taller card: sky spans y 0–480, soil spans y 480–640.
-export const CLOUD_LAYOUT = makePoints(5, 11, [30, 370], [40, 290]);
-export const STAR_LAYOUT = makePoints(55, 22, [10, 390], [10, 460]);
-export const SNOW_LAYOUT = makePoints(14, 33, [20, 380], [490, 630]);
-export const LEAF_LAYOUT = makePoints(9, 44, [20, 380], [488, 625]);
-export const FLOWER_LAYOUT = makePoints(11, 55, [25, 375], [483, 498]);
-export const ROCK_LAYOUT = makePoints(7, 66, [20, 380], [495, 635]);
-export const FURROW_LAYOUT = makePoints(4, 77, [0, 0], [495, 630]);
+// Sky elements: yPct 0..1 maps to sky region (y: 20 to horizon - 30)
+export const CLOUD_LAYOUT = makeNormalizedPoints(8, 11, [0.04, 0.94], [0.08, 0.75]);
+export const STAR_LAYOUT = makeNormalizedPoints(85, 22, [0.01, 0.99], [0.03, 0.92]);
+
+// Ground elements: yPct 0..1 maps to soil region (y: horizon + 15 to height - 20)
+export const SNOW_LAYOUT = makeNormalizedPoints(26, 33, [0.02, 0.98], [0.05, 0.92]);
+export const LEAF_LAYOUT = makeNormalizedPoints(18, 44, [0.02, 0.98], [0.06, 0.90]);
+export const FLOWER_LAYOUT = makeNormalizedPoints(26, 55, [0.02, 0.98], [0.1, 0.9]);
+export const ROCK_LAYOUT = makeNormalizedPoints(14, 66, [0.03, 0.97], [0.12, 0.88]);
+export const FURROW_DEPTHS = [0.18, 0.38, 0.58, 0.76, 0.92];

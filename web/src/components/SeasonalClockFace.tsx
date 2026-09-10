@@ -16,36 +16,24 @@ import {
 import {
   CLOUD_LAYOUT,
   FLOWER_LAYOUT,
-  FURROW_LAYOUT,
+  FURROW_DEPTHS,
   LEAF_LAYOUT,
   ROCK_LAYOUT,
   SNOW_LAYOUT,
   STAR_LAYOUT,
 } from "../lib/decorLayout";
+import { useContainerDimensions } from "../hooks/useContainerDimensions";
 import ReminderPopover from "./ReminderPopover";
 
-const VIEW_W = 400;
-const VIEW_H = 640; // taller-than-wide card: room for a big dial + thin soil + open sky
-const CENTER_X = VIEW_W / 2;
-// Horizon sits well below the frame's vertical middle, with a generous open-sky
-// margin above the dial, so the soil band stays a thin strip while the dial
-// itself stays large (not shrunk to fit).
-const TRACK_RADIUS = 160;
-const HORIZON_Y = VIEW_H - TRACK_RADIUS; // circle's bottom (midnight) touches the frame's bottom
-const SUN_RADIUS = 18;
-const DOT_RADIUS = 8;
-const HIT_RADIUS = 18;
-const TWILIGHT_BAND = 30; // viewBox units either side of the horizon
-
 const HOUR_MARKERS = [
-  { hoursSinceNoon: 0, label: "12PM" },
-  { hoursSinceNoon: 3, label: "3PM" },
-  { hoursSinceNoon: 6, label: "6PM" },
-  { hoursSinceNoon: 9, label: "9PM" },
-  { hoursSinceNoon: 12, label: "12AM" },
-  { hoursSinceNoon: 15, label: "3AM" },
-  { hoursSinceNoon: 18, label: "6AM" },
-  { hoursSinceNoon: 21, label: "9AM" },
+  { hoursSinceNoon: 0, label: "12PM", subLabel: "Noon" },
+  { hoursSinceNoon: 3, label: "3PM", subLabel: "" },
+  { hoursSinceNoon: 6, label: "6PM", subLabel: "Sunset" },
+  { hoursSinceNoon: 9, label: "9PM", subLabel: "" },
+  { hoursSinceNoon: 12, label: "12AM", subLabel: "Midnight" },
+  { hoursSinceNoon: 15, label: "3AM", subLabel: "" },
+  { hoursSinceNoon: 18, label: "6AM", subLabel: "Sunrise" },
+  { hoursSinceNoon: 21, label: "9AM", subLabel: "" },
 ];
 
 function zigzagGrassPath(
@@ -78,18 +66,37 @@ interface Props {
 }
 
 export default function SeasonalClockFace({ now, reminders }: Props) {
+  const { ref, dimensions } = useContainerDimensions<HTMLDivElement>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const width = dimensions.width || 800;
+  const height = dimensions.height || 600;
+
+  // Horizon splits the canvas right at the vertical midpoint
+  const centerX = width / 2;
+  const horizonY = Math.round(height * 0.5);
+
+  // Responsive radius: maximizes the dial on both portrait and landscape screens
+  // leaving comfortable room for markers and floating HUD badges
+  const trackRadius = useMemo(() => {
+    const maxRadius = Math.min(width * 0.38, height * 0.34, 420);
+    return Math.max(120, Math.round(maxRadius));
+  }, [width, height]);
+
+  const sunRadius = Math.max(16, Math.min(26, Math.round(trackRadius * 0.085)));
+  const dotRadius = Math.max(8, Math.min(13, Math.round(trackRadius * 0.045)));
+  const hitRadius = Math.max(22, dotRadius * 2);
+  const twilightBand = Math.max(25, Math.round(height * 0.05));
 
   const weights = useMemo(() => getSeasonWeights(now), [now]);
 
   const sunPoint = useMemo(
-    () => pointOnCircle(CENTER_X, HORIZON_Y, TRACK_RADIUS, angleForDate(now)),
-    [now],
+    () => pointOnCircle(centerX, horizonY, trackRadius, angleForDate(now)),
+    [centerX, horizonY, trackRadius, now],
   );
 
-  // Continuous 0..1 night factor with a soft twilight fade around the horizon,
-  // instead of the scene snapping instantly at 6am/6pm.
-  const nightFactor = smoothstep(-TWILIGHT_BAND, TWILIGHT_BAND, sunPoint.y - HORIZON_Y);
+  // Continuous 0..1 night factor with a soft twilight fade around the horizon
+  const nightFactor = smoothstep(-twilightBand, twilightBand, sunPoint.y - horizonY);
 
   const daySkyTop = useMemo(() => blendColors(weights, paletteChannel("skyTop")), [weights]);
   const daySkyBottom = useMemo(() => blendColors(weights, paletteChannel("skyBottom")), [weights]);
@@ -116,77 +123,109 @@ export default function SeasonalClockFace({ now, reminders }: Props) {
     () =>
       reminders.map((r) => {
         const point = pointOnCircle(
-          CENTER_X,
-          HORIZON_Y,
-          TRACK_RADIUS,
+          centerX,
+          horizonY,
+          trackRadius,
           angleForDate(new Date(r.eventTime)),
         );
         return { reminder: r, point };
       }),
-    [reminders],
+    [reminders, centerX, horizonY, trackRadius],
   );
 
   const selected = reminderPoints.find((r) => r.reminder.id === selectedId);
   const timeMs = now.getTime();
 
+  // Grass parameters scaled to viewport width
+  const grassTeeth = Math.max(30, Math.round(width / 14));
+  const frontGrassTeeth = Math.max(26, Math.round(width / 16));
+
+  // 24-hour tick divisions (15 deg each)
+  const hourTicks = useMemo(() => {
+    return Array.from({ length: 24 }, (_, i) => {
+      const angle = -90 - i * 15;
+      const isMajor = i % 3 === 0;
+      const inner = pointOnCircle(centerX, horizonY, trackRadius - (isMajor ? 8 : 4), angle);
+      const outer = pointOnCircle(centerX, horizonY, trackRadius + (isMajor ? 8 : 4), angle);
+      return { id: i, inner, outer, isMajor };
+    });
+  }, [centerX, horizonY, trackRadius]);
+
   return (
-    <div className="relative mx-auto h-full max-w-full aspect-[5/8] rounded-[2rem] overflow-hidden shadow-2xl border border-black/20 select-none">
-      <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="absolute inset-0 h-full w-full">
+    <div ref={ref} className="relative h-full w-full overflow-hidden select-none">
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className="absolute inset-0 h-full w-full"
+      >
         <defs>
-          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={skyTop} />
             <stop offset="100%" stopColor={skyBottom} />
           </linearGradient>
-          <linearGradient id="earth" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="earthGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={earthTopFinal} />
             <stop offset="100%" stopColor={earthBottomFinal} />
           </linearGradient>
           <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={sunColor} stopOpacity="0.55" />
+            <stop offset="0%" stopColor={sunColor} stopOpacity="0.65" />
+            <stop offset="50%" stopColor={sunColor} stopOpacity="0.25" />
             <stop offset="100%" stopColor={sunColor} stopOpacity="0" />
           </radialGradient>
+          <radialGradient id="sunAura" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+            <stop offset="40%" stopColor={sunColor} stopOpacity="0.7" />
+            <stop offset="100%" stopColor={sunColor} stopOpacity="0" />
+          </radialGradient>
+          <filter id="badgeShadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.7" />
+          </filter>
         </defs>
 
-        {/* Sky (upper half) */}
-        <rect x={0} y={0} width={VIEW_W} height={HORIZON_Y} fill="url(#sky)" />
+        {/* 1. Sky layer (spans from top to horizon) */}
+        <rect x={0} y={0} width={width} height={horizonY} fill="url(#skyGrad)" />
 
-        {/* Stars fade in as night falls */}
+        {/* Stars fade in during night across entire sky */}
         <g opacity={nightFactor}>
           {STAR_LAYOUT.map((star) => {
             const twinkle = 0.5 + 0.5 * Math.sin(timeMs / 900 + star.phase);
+            const x = star.xPct * width;
+            const y = Math.max(15, star.yPct * (horizonY - 20));
             return (
               <circle
                 key={star.id}
-                cx={star.x}
-                cy={star.y}
-                r={0.8 * star.scale}
+                cx={x}
+                cy={y}
+                r={1.1 * star.scale}
                 fill="#ffffff"
-                opacity={0.3 + 0.5 * twinkle}
+                opacity={0.35 + 0.55 * twinkle}
               />
             );
           })}
         </g>
 
-        {/* Clouds fade out as night falls */}
-        <g opacity={dayFactor * 0.85}>
+        {/* Clouds drift across the sky during daytime */}
+        <g opacity={dayFactor * 0.88}>
           {CLOUD_LAYOUT.map((cloud) => {
-            const drift = Math.sin(timeMs / 40000 + cloud.phase) * 8;
-            const cx = cloud.x + drift;
+            const drift = Math.sin(timeMs / 40000 + cloud.phase) * 20;
+            const cx = ((cloud.xPct * width + drift) % width + width) % width;
+            const cy = Math.max(35, cloud.yPct * (horizonY - 50));
             return (
-              <g key={cloud.id} opacity={0.8}>
-                <ellipse cx={cx} cy={cloud.y} rx={26 * cloud.scale} ry={10 * cloud.scale} fill={cloudColor} />
+              <g key={cloud.id} opacity={0.82}>
+                <ellipse cx={cx} cy={cy} rx={36 * cloud.scale} ry={13 * cloud.scale} fill={cloudColor} />
                 <ellipse
-                  cx={cx + 16 * cloud.scale}
-                  cy={cloud.y + 3}
-                  rx={16 * cloud.scale}
-                  ry={8 * cloud.scale}
+                  cx={cx + 22 * cloud.scale}
+                  cy={cy + 4}
+                  rx={22 * cloud.scale}
+                  ry={10 * cloud.scale}
                   fill={cloudColor}
                 />
                 <ellipse
-                  cx={cx - 16 * cloud.scale}
-                  cy={cloud.y + 3}
-                  rx={16 * cloud.scale}
-                  ry={8 * cloud.scale}
+                  cx={cx - 22 * cloud.scale}
+                  cy={cy + 4}
+                  rx={22 * cloud.scale}
+                  ry={10 * cloud.scale}
                   fill={cloudColor}
                 />
               </g>
@@ -194,174 +233,347 @@ export default function SeasonalClockFace({ now, reminders }: Props) {
           })}
         </g>
 
-        {/* Earth (lower half) */}
-        <rect x={0} y={HORIZON_Y} width={VIEW_W} height={VIEW_H - HORIZON_Y} fill="url(#earth)" />
+        {/* 2. Earth layer (spans from horizon to bottom of screen) */}
+        <rect
+          x={0}
+          y={horizonY}
+          width={width}
+          height={height - horizonY}
+          fill="url(#earthGrad)"
+        />
 
-        {/* Soil furrows for texture */}
-        {FURROW_LAYOUT.map((furrow) => (
-          <path
-            key={furrow.id}
-            d={`M10,${furrow.y} Q200,${furrow.y + 6} 390,${furrow.y}`}
-            fill="none"
-            stroke="#000000"
-            strokeOpacity={0.08}
-            strokeWidth={3}
-          />
-        ))}
+        {/* Soil furrows spanning full screen width */}
+        {FURROW_DEPTHS.map((depthPct, idx) => {
+          const y = horizonY + 20 + depthPct * (height - horizonY - 40);
+          return (
+            <path
+              key={idx}
+              d={`M 0,${y} Q ${width * 0.25},${y + 8} ${width * 0.5},${y} T ${width},${y}`}
+              fill="none"
+              stroke="#000000"
+              strokeOpacity={0.1}
+              strokeWidth={3}
+            />
+          );
+        })}
 
-        {/* Scattered rocks */}
-        {ROCK_LAYOUT.map((rock) => (
-          <ellipse
-            key={rock.id}
-            cx={rock.x}
-            cy={rock.y}
-            rx={5 * rock.scale}
-            ry={3 * rock.scale}
-            fill="#000000"
-            opacity={0.12}
-          />
-        ))}
+        {/* Scattered soil rocks */}
+        {ROCK_LAYOUT.map((rock) => {
+          const x = rock.xPct * width;
+          const y = horizonY + 20 + rock.yPct * (height - horizonY - 40);
+          return (
+            <ellipse
+              key={rock.id}
+              cx={x}
+              cy={y}
+              rx={6 * rock.scale}
+              ry={3.5 * rock.scale}
+              fill="#000000"
+              opacity={0.14}
+            />
+          );
+        })}
 
-        {/* Snow settles on the ground in winter */}
+        {/* Winter snow patches */}
         <g opacity={winterWeight}>
           {SNOW_LAYOUT.map((flake) => {
-            const fallY = flake.y + ((timeMs / 40) % 30) * flake.scale * 0.2;
+            const x = flake.xPct * width;
+            const fallOffset = ((timeMs / 45) % 40) * flake.scale * 0.25;
+            const y = Math.min(
+              horizonY + 20 + flake.yPct * (height - horizonY - 35) + fallOffset,
+              height - 10,
+            );
             return (
               <circle
                 key={flake.id}
-                cx={flake.x}
-                cy={Math.min(fallY, VIEW_H - 8)}
-                r={2 * flake.scale}
+                cx={x}
+                cy={y}
+                r={2.4 * flake.scale}
                 fill="#f5f9ff"
-                opacity={0.85}
+                opacity={0.9}
               />
             );
           })}
         </g>
 
-        {/* Fallen/falling leaves in autumn */}
+        {/* Autumn fallen leaves */}
         <g opacity={autumnWeight}>
-          {LEAF_LAYOUT.map((leaf) => (
-            <ellipse
-              key={leaf.id}
-              cx={leaf.x}
-              cy={leaf.y}
-              rx={5 * leaf.scale}
-              ry={2.5 * leaf.scale}
-              fill="#c9622a"
-              transform={`rotate(${(leaf.phase * 180) / Math.PI} ${leaf.x} ${leaf.y})`}
-              opacity={0.85}
-            />
-          ))}
+          {LEAF_LAYOUT.map((leaf) => {
+            const x = leaf.xPct * width;
+            const y = horizonY + 15 + leaf.yPct * (height - horizonY - 30);
+            return (
+              <ellipse
+                key={leaf.id}
+                cx={x}
+                cy={y}
+                rx={6 * leaf.scale}
+                ry={3 * leaf.scale}
+                fill="#c9622a"
+                transform={`rotate(${(leaf.phase * 180) / Math.PI} ${x} ${y})`}
+                opacity={0.88}
+              />
+            );
+          })}
         </g>
 
-        {/* Spring blossoms along the grass line */}
+        {/* Spring flowers along the grass line */}
         <g opacity={springWeight}>
-          {FLOWER_LAYOUT.map((flower) => (
-            <circle
-              key={flower.id}
-              cx={flower.x}
-              cy={flower.y}
-              r={2.2 * flower.scale}
-              fill={flower.id % 2 === 0 ? "#ffb6d9" : "#fff275"}
-              opacity={0.9}
-            />
-          ))}
+          {FLOWER_LAYOUT.map((flower) => {
+            const x = flower.xPct * width;
+            const y = horizonY - 2 + flower.yPct * 14;
+            return (
+              <circle
+                key={flower.id}
+                cx={x}
+                cy={y}
+                r={2.8 * flower.scale}
+                fill={flower.id % 2 === 0 ? "#ffb6d9" : "#fff275"}
+                opacity={0.92}
+              />
+            );
+          })}
         </g>
 
         {/* Grass along the horizon boundary (back layer) */}
         <path
-          d={zigzagGrassPath(VIEW_W, HORIZON_Y, 40, 12)}
+          d={zigzagGrassPath(width, horizonY, grassTeeth, 13)}
           fill="none"
           stroke={grassFinal}
           strokeWidth={3}
           strokeLinejoin="round"
         />
 
-        {/* A second, closer row of grass in front for a bit of depth */}
+        {/* Closer, darker row of grass in front for rich depth */}
         <path
-          d={zigzagGrassPath(VIEW_W + 20, HORIZON_Y + 6, 34, 16, -10)}
+          d={zigzagGrassPath(width + 20, horizonY + 6, frontGrassTeeth, 18, -10)}
           fill="none"
           stroke={grassFrontFinal}
           strokeWidth={4}
           strokeLinejoin="round"
         />
 
-        {/* Horizon line */}
-        <line x1={0} y1={HORIZON_Y} x2={VIEW_W} y2={HORIZON_Y} stroke="#4b1f7a" strokeWidth={3} />
-
-        {/* Time track */}
-        <circle
-          cx={CENTER_X}
-          cy={HORIZON_Y}
-          r={TRACK_RADIUS}
-          fill="none"
-          stroke="#f4a6c9"
-          strokeOpacity={0.65}
-          strokeWidth={2}
+        {/* Horizon boundary line with subtle glowing aura */}
+        <line
+          x1={0}
+          y1={horizonY}
+          x2={width}
+          y2={horizonY}
+          stroke="#4b1f7a"
+          strokeWidth={3}
+        />
+        <line
+          x1={0}
+          y1={horizonY}
+          x2={width}
+          y2={horizonY}
+          stroke="#a855f7"
+          strokeWidth={1}
+          strokeOpacity={0.4}
         />
 
-        {/* Hour markers */}
-        {HOUR_MARKERS.map((marker) => {
-          const anglePoint = pointOnCircle(
-            CENTER_X,
-            HORIZON_Y,
-            TRACK_RADIUS + 20,
-            -90 - marker.hoursSinceNoon * 15,
-          );
-          return (
-            <text
-              key={marker.label}
-              x={anglePoint.x}
-              y={anglePoint.y}
-              fontSize={11}
-              fill="#ffffff"
-              opacity={0.75}
-              textAnchor="middle"
-              dominantBaseline="middle"
-            >
-              {marker.label}
-            </text>
-          );
-        })}
+        {/* 3. Astronomical 24-Hour Dial */}
 
-        {/* Sun */}
-        <circle cx={sunPoint.x} cy={sunPoint.y} r={SUN_RADIUS * 2.2} fill="url(#sunGlow)" />
+        {/* Outer celestial faint ring */}
         <circle
-          cx={sunPoint.x}
-          cy={sunPoint.y}
-          r={SUN_RADIUS}
-          fill={sunColor}
+          cx={centerX}
+          cy={horizonY}
+          r={trackRadius + 14}
+          fill="none"
           stroke="#ffffff"
-          strokeOpacity={0.5}
+          strokeOpacity={0.08}
+          strokeWidth={1}
+          strokeDasharray="2 4"
+        />
+
+        {/* Main celestial track */}
+        <circle
+          cx={centerX}
+          cy={horizonY}
+          r={trackRadius}
+          fill="none"
+          stroke="#f4a6c9"
+          strokeOpacity={0.75}
+          strokeWidth={2.5}
+        />
+
+        {/* 24-hour radial tick marks */}
+        {hourTicks.map((tick) => (
+          <line
+            key={tick.id}
+            x1={tick.inner.x}
+            y1={tick.inner.y}
+            x2={tick.outer.x}
+            y2={tick.outer.y}
+            stroke="#ffffff"
+            strokeOpacity={tick.isMajor ? 0.75 : 0.3}
+            strokeWidth={tick.isMajor ? 2 : 1}
+          />
+        ))}
+
+        {/* Center compass pivot node on horizon */}
+        <circle
+          cx={centerX}
+          cy={horizonY}
+          r={7}
+          fill="#ffffff"
+          opacity={0.8}
+        />
+        <circle
+          cx={centerX}
+          cy={horizonY}
+          r={14}
+          fill="none"
+          stroke="#ffffff"
+          strokeOpacity={0.35}
           strokeWidth={1.5}
         />
 
-        {/* Reminder dots */}
+        {/* Sundial solar beam pointing from center to current sun position */}
+        <line
+          x1={centerX}
+          y1={horizonY}
+          x2={sunPoint.x}
+          y2={sunPoint.y}
+          stroke={sunColor}
+          strokeWidth={2}
+          strokeOpacity={0.45}
+          strokeDasharray="4 4"
+        />
+
+        {/* 4. Hour Markers & Labels (High contrast badges) */}
+        {HOUR_MARKERS.map((marker) => {
+          const markerRadius = trackRadius + (width < 500 ? 20 : 26);
+          const anglePoint = pointOnCircle(
+            centerX,
+            horizonY,
+            markerRadius,
+            -90 - marker.hoursSinceNoon * 15,
+          );
+
+          const isCardinals = marker.subLabel !== "";
+          const badgeW = isCardinals && marker.subLabel ? 56 : 44;
+          const badgeH = isCardinals && marker.subLabel ? 28 : 20;
+
+          return (
+            <g
+              key={marker.label}
+              transform={`translate(${anglePoint.x}, ${anglePoint.y})`}
+              filter="url(#badgeShadow)"
+            >
+              {/* Semi-transparent dark backing pill for readability over sky/soil */}
+              <rect
+                x={-badgeW / 2}
+                y={-badgeH / 2}
+                width={badgeW}
+                height={badgeH}
+                rx={Math.round(badgeH / 2)}
+                fill="rgba(10, 15, 26, 0.65)"
+                stroke="rgba(255, 255, 255, 0.2)"
+                strokeWidth={1}
+              />
+              <text
+                x={0}
+                y={marker.subLabel ? -3 : 0}
+                fontSize={width < 500 ? 11 : 12}
+                fontWeight="700"
+                fill="#ffffff"
+                textAnchor="middle"
+                dominantBaseline="central"
+                className="font-mono tracking-tight"
+              >
+                {marker.label}
+              </text>
+              {marker.subLabel && (
+                <text
+                  x={0}
+                  y={8}
+                  fontSize={8}
+                  fontWeight="500"
+                  fill="#93c5fd"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  className="uppercase tracking-wider"
+                >
+                  {marker.subLabel}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* 5. Sun with Glowing Aura and Flare Rings */}
+        {/* Soft atmospheric halo */}
+        <circle
+          cx={sunPoint.x}
+          cy={sunPoint.y}
+          r={sunRadius * 3.2}
+          fill="url(#sunGlow)"
+        />
+        {/* Corona ring */}
+        <circle
+          cx={sunPoint.x}
+          cy={sunPoint.y}
+          r={sunRadius * 1.4}
+          fill="none"
+          stroke={sunColor}
+          strokeWidth={1.5}
+          strokeOpacity={0.5}
+        />
+        {/* Sun body */}
+        <circle
+          cx={sunPoint.x}
+          cy={sunPoint.y}
+          r={sunRadius}
+          fill={sunColor}
+          stroke="#ffffff"
+          strokeOpacity={0.7}
+          strokeWidth={2}
+        />
+        {/* Sun center highlight */}
+        <circle
+          cx={sunPoint.x}
+          cy={sunPoint.y}
+          r={sunRadius * 0.45}
+          fill="url(#sunAura)"
+        />
+
+        {/* 6. Reminder Pins */}
         {reminderPoints.map(({ reminder, point }) => (
           <g
             key={reminder.id}
             onClick={() => setSelectedId((cur) => (cur === reminder.id ? null : reminder.id))}
-            className="cursor-pointer"
+            className="cursor-pointer group"
           >
-            <circle cx={point.x} cy={point.y} r={HIT_RADIUS} fill="transparent" />
+            {/* Invisible large touch hit target */}
+            <circle cx={point.x} cy={point.y} r={hitRadius} fill="transparent" />
+
+            {/* Glowing pin pulse halo */}
             <circle
               cx={point.x}
               cy={point.y}
-              r={DOT_RADIUS}
+              r={dotRadius * 1.8}
+              fill="#ff8c1a"
+              opacity={0.35}
+            />
+            {/* Pin core */}
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={dotRadius}
               fill="#ff8c1a"
               stroke="#ffffff"
-              strokeWidth={2}
+              strokeWidth={2.5}
             />
           </g>
         ))}
       </svg>
 
+      {/* Reminder Popover Card */}
       {selected && (
         <ReminderPopover
           reminder={selected.reminder}
-          xPercent={(selected.point.x / VIEW_W) * 100}
-          yPercent={(selected.point.y / VIEW_H) * 100}
+          xPercent={(selected.point.x / width) * 100}
+          yPercent={(selected.point.y / height) * 100}
           onClose={() => setSelectedId(null)}
         />
       )}

@@ -57,6 +57,7 @@ export default function OrbitTracker({ now }: Props) {
   const dateLabel = previewDate.toLocaleDateString(undefined, {
     month: "long",
     day: "numeric",
+    year: "numeric",
   });
 
   const minRadius = minOrbitRadius(A);
@@ -93,90 +94,111 @@ export default function OrbitTracker({ now }: Props) {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-2xl bg-slate-900/80 p-4 text-white shadow-xl">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-white/70">
-          Earth&apos;s Orbit (stylised)
-        </h3>
-        {isExploring && (
-          <button
-            type="button"
-            onClick={() => setPreviewDay(null)}
-            className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] hover:bg-white/20"
+    <div className="flex h-full w-full flex-col items-center justify-center p-4 pt-16 sm:pt-20 select-none overflow-y-auto">
+      <div className="w-full max-w-lg rounded-3xl bg-slate-900/85 p-5 sm:p-6 text-white shadow-2xl border border-white/10 backdrop-blur-md">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm sm:text-base font-bold uppercase tracking-wider text-sky-400">
+              Earth&apos;s Annual Orbit
+            </h3>
+            <p className="text-[11px] text-white/50">Elliptical path & seasonal solstices</p>
+          </div>
+          {isExploring && (
+            <button
+              type="button"
+              onClick={() => setPreviewDay(null)}
+              className="rounded-full bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 px-3 py-1 text-xs text-sky-200 transition"
+            >
+              Back to Today
+            </button>
+          )}
+        </div>
+
+        <div className="relative my-2 flex justify-center">
+          <svg
+            ref={svgRef}
+            viewBox={`-${VIEW_HALF} -${VIEW_HALF} ${VIEW_HALF * 2} ${VIEW_HALF * 2}`}
+            className="h-60 w-60 sm:h-72 sm:w-72 md:h-80 md:w-80 touch-none cursor-grab active:cursor-grabbing drop-shadow-[0_0_25px_rgba(56,189,248,0.15)]"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
           >
-            Back to now
-          </button>
-        )}
-      </div>
+            {/* Orbit track */}
+            <path
+              d={orbitPath}
+              fill="none"
+              stroke="#7dd3fc"
+              strokeOpacity={0.4}
+              strokeWidth={1.75}
+            />
 
-      <svg
-        ref={svgRef}
-        viewBox={`-${VIEW_HALF} -${VIEW_HALF} ${VIEW_HALF * 2} ${VIEW_HALF * 2}`}
-        className="mx-auto h-40 w-40 touch-none cursor-grab active:cursor-grabbing"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-      >
-        <path d={orbitPath} fill="none" stroke="#7dd3fc" strokeOpacity={0.45} strokeWidth={1.5} />
+            {/* Sun at the ellipse focus */}
+            <circle cx={0} cy={0} r={18} fill="#ffd23f" opacity={0.2} />
+            <circle cx={0} cy={0} r={11} fill="#ffd23f" />
 
-        {/* Sun sits at the ellipse's focus, not the centre */}
-        <circle cx={0} cy={0} r={9} fill="#ffd23f" />
-        <circle cx={0} cy={0} r={14} fill="#ffd23f" opacity={0.25} />
+            {/* Season anchor dots */}
+            {seasonPoints.map(({ season: s, color, point }) => (
+              <circle
+                key={s}
+                cx={point.x}
+                cy={point.y}
+                r={4}
+                fill={color}
+                stroke="#0f172a"
+                strokeWidth={1}
+              />
+            ))}
 
-        {seasonPoints.map(({ season: s, color, point }) => (
-          <circle
-            key={s}
-            cx={point.x}
-            cy={point.y}
-            r={3.5}
-            fill={color}
-            stroke="#0f172a"
-            strokeWidth={0.75}
-          />
-        ))}
+            {/* Perihelion & Aphelion markers */}
+            <g>
+              <circle cx={periPos.x} cy={periPos.y} r={3} fill="#ffffff" />
+              <title>Closest approach (~Jan 3, Perihelion)</title>
+            </g>
+            <g>
+              <circle cx={apheliaPos.x} cy={apheliaPos.y} r={3} fill="#ffffff" />
+              <title>Farthest point (~Jul 6, Aphelion)</title>
+            </g>
 
-        <g>
-          <circle cx={periPos.x} cy={periPos.y} r={2.5} fill="#ffffff" />
-          <title>Closest approach (~Jan 3, Northern winter)</title>
-        </g>
-        <g>
-          <circle cx={apheliaPos.x} cy={apheliaPos.y} r={2.5} fill="#ffffff" />
-          <title>Farthest point (~Jul 6, Northern summer)</title>
-        </g>
+            {/* Earth interactive draggable marker */}
+            <circle cx={earthPos.x} cy={earthPos.y} r={18} fill="transparent" />
+            <circle
+              cx={earthPos.x}
+              cy={earthPos.y}
+              r={12}
+              fill="#38bdf8"
+              opacity={0.3}
+            />
+            <circle
+              cx={earthPos.x}
+              cy={earthPos.y}
+              r={7}
+              fill="#38bdf8"
+              stroke="#ffffff"
+              strokeWidth={2}
+            />
+          </svg>
+        </div>
 
-        {/* Larger invisible hit target makes the marker easy to grab */}
-        <circle cx={earthPos.x} cy={earthPos.y} r={14} fill="transparent" />
-        <circle
-          cx={earthPos.x}
-          cy={earthPos.y}
-          r={6}
-          fill="#38bdf8"
-          stroke="#ffffff"
-          strokeWidth={1.5}
-        />
-      </svg>
-
-      <p className="mt-1 text-center text-[10px] text-white/50">
-        Drag the blue dot to explore any day of the year.
-      </p>
-
-      <div className="mt-3 rounded-xl bg-black/30 p-3 text-xs leading-relaxed text-white/80">
-        <p>
-          <span className="font-semibold text-white">{dateLabel}</span> —{" "}
-          {SEASON_PALETTES[season].label} (Northern hemisphere)
+        <p className="text-center text-xs text-sky-300/80 font-medium">
+          Drag the blue Earth dot along the orbit to explore any day.
         </p>
-        <p className="mt-1">Earth is {distanceLabel} at this point in its orbit.</p>
-        {!isExploring && (
-          <p className="mt-1 text-white/50">Showing the live position — drag the dot to explore.</p>
-        )}
-      </div>
 
-      <p className="mt-2 text-center text-[11px] leading-snug text-white/70">
-        Earth is actually closest to the Sun in January and farthest in July —
-        axial tilt drives the seasons, not distance. Shape and speed here are
-        stylised for legibility, not to scale.
-      </p>
+        <div className="mt-4 rounded-2xl bg-black/40 p-3.5 text-xs leading-relaxed text-white/90 border border-white/10">
+          <p className="text-sm font-semibold text-white">
+            {dateLabel} — <span className="text-amber-300">{SEASON_PALETTES[season].label}</span>
+          </p>
+          <p className="mt-1 text-white/80">Earth is {distanceLabel}.</p>
+          {!isExploring && (
+            <p className="mt-1 text-[11px] text-white/50">Live real-time position.</p>
+          )}
+        </div>
+
+        <p className="mt-3 text-center text-[11px] leading-snug text-white/60">
+          Note: Earth is closest to the Sun in January and farthest in July.
+          Axial tilt (23.5°) drives the seasons, not orbital distance.
+        </p>
+      </div>
     </div>
   );
 }
