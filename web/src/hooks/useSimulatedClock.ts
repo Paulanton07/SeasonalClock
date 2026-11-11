@@ -9,7 +9,7 @@ export type ClockMode = "real" | "demo";
  */
 export function useSimulatedClock() {
   const [mode, setMode] = useState<ClockMode>("real");
-  const [daysPerSecond, setDaysPerSecond] = useState(0.25);
+  const [daysPerSecond, setDaysPerSecond] = useState(0.125);
   const [now, setNow] = useState(() => new Date());
 
   const simulatedRef = useRef(new Date());

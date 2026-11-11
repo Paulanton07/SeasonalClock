@@ -61,17 +61,15 @@ export function DemoControls({
       <label className="flex items-center gap-2 text-white/90">
         <input
           type="range"
-          min={0.25}
+          min={0.125}
           max={15}
-          step={0.25}
+          step={0.125}
           value={daysPerSecond}
           onChange={(e) => onSpeedChange(Number(e.target.value))}
           className="accent-amber-400 cursor-pointer w-24 sm:w-28"
         />
         <span className="font-mono text-[11px] text-white/80 w-16">
-          {(daysPerSecond * 10) % 1 === 0
-            ? daysPerSecond.toFixed(1)
-            : daysPerSecond.toFixed(2)}{" "}
+          {Number.isInteger(daysPerSecond) ? daysPerSecond.toFixed(1) : String(daysPerSecond)}{" "}
           d/s
         </span>
       </label>
