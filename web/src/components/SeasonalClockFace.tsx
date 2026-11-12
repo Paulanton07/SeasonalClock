@@ -131,38 +131,48 @@ interface Props {
   hemisphere: Hemisphere;
   /** Pixels from the top of the screen covered by the floating header. */
   topInset?: number;
+  onDeleteReminder: (id: string) => void;
 }
 
-export default function SeasonalClockFace({ now, reminders, hemisphere, topInset = 0 }: Props) {
+export default function SeasonalClockFace({
+  now,
+  reminders,
+  hemisphere,
+  topInset = 0,
+  onDeleteReminder,
+}: Props) {
   const { ref, dimensions } = useContainerDimensions<HTMLDivElement>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const width = dimensions.width || 800;
   const height = dimensions.height || 600;
 
-  // Horizon splits the canvas right at the vertical midpoint
+  // Horizon sits at mid-height, nudged down when the header leaves more room above than below
   const centerX = width / 2;
-  const horizonY = Math.round(height * 0.5);
 
-  // Responsive radius: fills the screen as far as the hour badges and HUD allow
+  // Responsive radius: fills the free space between header and footer, limited by the hour badges
   const isNarrow = width < 500;
-  const markerOffset = isNarrow ? 38 : 42;
-  const cardinalBadgeW = isNarrow ? 57 : 63;
-  const cardinalBadgeH = isNarrow ? 30 : 32;
-  const plainBadgeW = isNarrow ? 44 : 50;
-  const plainBadgeH = isNarrow ? 21 : 22;
-  const hudReserve = topInset + 8;
-  const footerReserve = isNarrow ? 76 : 84;
+  const markerOffset = isNarrow ? 34 : 36;
+  const cardinalBadgeW = isNarrow ? 48 : 52;
+  const cardinalBadgeH = isNarrow ? 25 : 27;
+  const plainBadgeW = isNarrow ? 36 : 40;
+  const plainBadgeH = isNarrow ? 18 : 19;
+  const bandTop = topInset + 8;
+  // Footer buttons sit at the screen corners, so wide screens only need a small gap at the centre
+  const bandBottom = height - (width >= 700 ? 20 : 76);
+  const horizonY = Math.round(
+    Math.min(height * 0.58, Math.max(height * 0.5, (bandTop + bandBottom) / 2)),
+  );
   const trackRadius = useMemo(() => {
     const edge = markerOffset + cardinalBadgeH / 2;
     const maxRadius = Math.min(
       width / 2 - markerOffset - cardinalBadgeW / 2 - 4,
-      height / 2 - edge - hudReserve,
-      height / 2 - edge - footerReserve,
-      600,
+      horizonY - edge - bandTop,
+      bandBottom - horizonY - edge,
+      700,
     );
     return Math.max(60, Math.round(maxRadius));
-  }, [width, height, markerOffset, cardinalBadgeW, cardinalBadgeH, hudReserve, footerReserve]);
+  }, [width, markerOffset, cardinalBadgeW, cardinalBadgeH, horizonY, bandTop, bandBottom]);
 
   const sunRadius = Math.max(16, Math.min(26, Math.round(trackRadius * 0.085)));
   const dotRadius = Math.max(8, Math.min(13, Math.round(trackRadius * 0.045)));
@@ -631,8 +641,8 @@ export default function SeasonalClockFace({ now, reminders, hemisphere, topInset
               />
               <text
                 x={0}
-                y={marker.subLabel ? -4.5 : 0}
-                fontSize={isNarrow ? 12.75 : 13.5}
+                y={marker.subLabel ? -3.5 : 0}
+                fontSize={isNarrow ? 10.5 : 11}
                 fontWeight="700"
                 fill="#ffffff"
                 textAnchor="middle"
@@ -644,8 +654,8 @@ export default function SeasonalClockFace({ now, reminders, hemisphere, topInset
               {marker.subLabel && (
                 <text
                   x={0}
-                  y={8}
-                  fontSize={9}
+                  y={7}
+                  fontSize={7}
                   fontWeight="500"
                   fill="#93c5fd"
                   textAnchor="middle"
@@ -729,10 +739,15 @@ export default function SeasonalClockFace({ now, reminders, hemisphere, topInset
       {/* Reminder Popover Card */}
       {selected && (
         <ReminderPopover
+          key={selected.reminder.id}
           reminder={selected.reminder}
           xPercent={(selected.point.x / width) * 100}
           yPercent={(selected.point.y / height) * 100}
           onClose={() => setSelectedId(null)}
+          onDelete={(id) => {
+            onDeleteReminder(id);
+            setSelectedId(null);
+          }}
         />
       )}
     </div>

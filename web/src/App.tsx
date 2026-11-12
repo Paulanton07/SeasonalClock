@@ -12,7 +12,7 @@ import { useHemisphere } from "./hooks/useHemisphere";
 function App() {
   const { now, mode, setMode, daysPerSecond, setDaysPerSecond, resetDemo } =
     useSimulatedClock();
-  const { reminders, addReminder } = useReminders();
+  const { reminders, addReminder, removeReminder } = useReminders();
   const { hemisphere, setHemisphere } = useHemisphere();
   const [activeTab, setActiveTab] = useState<"clock" | "orbit">("clock");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -46,6 +46,7 @@ function App() {
             reminders={reminders}
             hemisphere={hemisphere}
             topInset={headerBottom}
+            onDeleteReminder={removeReminder}
           />
         ) : (
           <OrbitTracker now={now} hemisphere={hemisphere} />
