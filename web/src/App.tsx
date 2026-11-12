@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SeasonalClockFace from "./components/SeasonalClockFace";
 import OrbitTracker from "./components/OrbitTracker";
 import { ModeToggle, DemoControls, HemisphereToggle } from "./components/ClockControls";
@@ -17,6 +17,19 @@ function App() {
   const [activeTab, setActiveTab] = useState<"clock" | "orbit">("clock");
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // The header wraps onto extra rows on narrow screens; the dial sizes itself below it
+  const headerRef = useRef<HTMLElement | null>(null);
+  const [headerBottom, setHeaderBottom] = useState(0);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const measure = () => setHeaderBottom(Math.ceil(el.getBoundingClientRect().bottom));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const formattedDate = now.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
@@ -28,14 +41,19 @@ function App() {
       {/* 1. Main full-bleed scenery / views */}
       <main className="absolute inset-0 h-full w-full">
         {activeTab === "clock" ? (
-          <SeasonalClockFace now={now} reminders={reminders} hemisphere={hemisphere} />
+          <SeasonalClockFace
+            now={now}
+            reminders={reminders}
+            hemisphere={hemisphere}
+            topInset={headerBottom}
+          />
         ) : (
           <OrbitTracker now={now} hemisphere={hemisphere} />
         )}
       </main>
 
       {/* 2. Top Floating Glass HUD */}
-      <header className="absolute top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-4 sm:right-4 z-10 flex flex-col sm:flex-row items-center justify-between gap-2 pointer-events-none">
+      <header ref={headerRef} className="absolute top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-4 sm:right-4 z-10 flex flex-col sm:flex-row items-center justify-between gap-2 pointer-events-none">
         {/* Left item: Digital Time (+ Season on mobile) */}
         <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-2">
           <div className="pointer-events-auto rounded-2xl bg-black/40 px-4 py-2 sm:px-5 sm:py-2.5 backdrop-blur-md border border-white/15 shadow-xl flex items-baseline gap-2">

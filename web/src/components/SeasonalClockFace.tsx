@@ -129,9 +129,11 @@ interface Props {
   now: Date;
   reminders: Reminder[];
   hemisphere: Hemisphere;
+  /** Pixels from the top of the screen covered by the floating header. */
+  topInset?: number;
 }
 
-export default function SeasonalClockFace({ now, reminders, hemisphere }: Props) {
+export default function SeasonalClockFace({ now, reminders, hemisphere, topInset = 0 }: Props) {
   const { ref, dimensions } = useContainerDimensions<HTMLDivElement>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -142,25 +144,25 @@ export default function SeasonalClockFace({ now, reminders, hemisphere }: Props)
   const centerX = width / 2;
   const horizonY = Math.round(height * 0.5);
 
-  // Responsive radius: maximizes the dial on both portrait and landscape screens
-  // while leaving room for the (large) hour badges and the floating HUD
+  // Responsive radius: fills the screen as far as the hour badges and HUD allow
   const isNarrow = width < 500;
-  const markerOffset = isNarrow ? 46 : 52;
-  const cardinalBadgeW = isNarrow ? 76 : 84;
-  const cardinalBadgeH = isNarrow ? 40 : 42;
-  const plainBadgeW = isNarrow ? 58 : 66;
-  const plainBadgeH = isNarrow ? 28 : 30;
-  const hudReserve = isNarrow ? 150 : 100;
+  const markerOffset = isNarrow ? 38 : 42;
+  const cardinalBadgeW = isNarrow ? 57 : 63;
+  const cardinalBadgeH = isNarrow ? 30 : 32;
+  const plainBadgeW = isNarrow ? 44 : 50;
+  const plainBadgeH = isNarrow ? 21 : 22;
+  const hudReserve = topInset + 8;
+  const footerReserve = isNarrow ? 76 : 84;
   const trackRadius = useMemo(() => {
+    const edge = markerOffset + cardinalBadgeH / 2;
     const maxRadius = Math.min(
-      width * 0.38,
-      height * 0.34,
-      420,
-      width / 2 - markerOffset - cardinalBadgeW / 2 - 6,
-      height / 2 - markerOffset - cardinalBadgeH / 2 - hudReserve,
+      width / 2 - markerOffset - cardinalBadgeW / 2 - 4,
+      height / 2 - edge - hudReserve,
+      height / 2 - edge - footerReserve,
+      600,
     );
-    return Math.max(80, Math.round(maxRadius));
-  }, [width, height, markerOffset, cardinalBadgeW, cardinalBadgeH, hudReserve]);
+    return Math.max(60, Math.round(maxRadius));
+  }, [width, height, markerOffset, cardinalBadgeW, cardinalBadgeH, hudReserve, footerReserve]);
 
   const sunRadius = Math.max(16, Math.min(26, Math.round(trackRadius * 0.085)));
   const dotRadius = Math.max(8, Math.min(13, Math.round(trackRadius * 0.045)));
@@ -629,8 +631,8 @@ export default function SeasonalClockFace({ now, reminders, hemisphere }: Props)
               />
               <text
                 x={0}
-                y={marker.subLabel ? -6 : 0}
-                fontSize={isNarrow ? 17 : 18}
+                y={marker.subLabel ? -4.5 : 0}
+                fontSize={isNarrow ? 12.75 : 13.5}
                 fontWeight="700"
                 fill="#ffffff"
                 textAnchor="middle"
@@ -642,8 +644,8 @@ export default function SeasonalClockFace({ now, reminders, hemisphere }: Props)
               {marker.subLabel && (
                 <text
                   x={0}
-                  y={11}
-                  fontSize={12}
+                  y={8}
+                  fontSize={9}
                   fontWeight="500"
                   fill="#93c5fd"
                   textAnchor="middle"
