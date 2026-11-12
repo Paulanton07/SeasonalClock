@@ -56,11 +56,11 @@ function App() {
       <header ref={headerRef} className="absolute top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-4 sm:right-4 z-10 flex flex-col sm:flex-row items-center justify-between gap-2 pointer-events-none">
         {/* Left item: Digital Time (+ Season on mobile) */}
         <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-2">
-          <div className="pointer-events-auto rounded-2xl bg-black/40 px-4 py-2 sm:px-5 sm:py-2.5 backdrop-blur-md border border-white/15 shadow-xl flex items-baseline gap-2">
-            <span className="font-mono text-3xl sm:text-4xl font-black tracking-tight text-white">
+          <div className="pointer-events-auto rounded-2xl bg-black/40 px-3.5 py-1.5 sm:px-4 sm:py-2 backdrop-blur-md border border-white/15 shadow-xl flex items-baseline gap-2">
+            <span className="font-mono text-2xl sm:text-3xl font-black tracking-tight text-white">
               {formatDigitalTime(now)}
             </span>
-            <span className="text-lg text-white/70 font-medium hidden sm:inline">
+            <span className="text-base text-white/70 font-medium hidden sm:inline">
               {formattedDate}
             </span>
           </div>
@@ -78,7 +78,7 @@ function App() {
             <button
               type="button"
               onClick={() => setActiveTab("clock")}
-              className={`rounded-full px-4 py-1.5 text-lg font-semibold transition ${
+              className={`rounded-full px-3 py-1 text-[15px] sm:px-3.5 sm:text-base font-semibold transition ${
                 activeTab === "clock"
                   ? "bg-white text-slate-900 shadow-md"
                   : "text-white/70 hover:text-white"
@@ -89,7 +89,7 @@ function App() {
             <button
               type="button"
               onClick={() => setActiveTab("orbit")}
-              className={`rounded-full px-4 py-1.5 text-lg font-semibold transition ${
+              className={`rounded-full px-3 py-1 text-[15px] sm:px-3.5 sm:text-base font-semibold transition ${
                 activeTab === "orbit"
                   ? "bg-white text-slate-900 shadow-md"
                   : "text-white/70 hover:text-white"
@@ -129,9 +129,9 @@ function App() {
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-5 py-3 sm:px-7 sm:py-4 text-lg sm:text-xl font-bold text-white shadow-2xl backdrop-blur-md border border-white/20 transition transform active:scale-95 hover:scale-105"
+            className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-4 py-2.5 sm:px-5 sm:py-3 text-base sm:text-lg font-bold text-white shadow-2xl backdrop-blur-md border border-white/20 transition transform active:scale-95 hover:scale-105"
           >
-            <span className="text-2xl leading-none font-bold">+</span>
+            <span className="text-xl leading-none font-bold">+</span>
             <span>Add reminder</span>
           </button>
         )}

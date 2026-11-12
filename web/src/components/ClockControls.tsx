@@ -21,7 +21,7 @@ export function ModeToggle({
       <button
         type="button"
         onClick={() => onModeChange("real")}
-        className={`rounded-full px-4 py-1.5 text-lg font-semibold transition ${
+        className={`rounded-full px-3 py-1 text-[15px] sm:px-3.5 sm:text-base font-semibold transition ${
           mode === "real"
             ? "bg-white text-slate-900 shadow-md"
             : "text-white/70 hover:text-white"
@@ -32,7 +32,7 @@ export function ModeToggle({
       <button
         type="button"
         onClick={() => onModeChange("demo")}
-        className={`rounded-full px-4 py-1.5 text-lg font-semibold transition ${
+        className={`rounded-full px-3 py-1 text-[15px] sm:px-3.5 sm:text-base font-semibold transition ${
           mode === "demo"
             ? "bg-amber-400 text-slate-950 shadow-md"
             : "text-white/70 hover:text-white"
@@ -68,13 +68,14 @@ export function HemisphereToggle({
           title={o.title}
           aria-pressed={hemisphere === o.value}
           onClick={() => onChange(o.value)}
-          className={`rounded-full px-4 py-1.5 text-lg font-semibold transition ${
+          className={`rounded-full px-3 py-1 text-[15px] sm:px-3.5 sm:text-base font-semibold transition ${
             hemisphere === o.value
               ? "bg-white text-slate-900 shadow-md"
               : "text-white/70 hover:text-white"
           }`}
         >
-          {o.label}
+          <span className="sm:hidden">{o.value === "north" ? "N" : "S"}</span>
+          <span className="hidden sm:inline">{o.label}</span>
         </button>
       ))}
     </div>
@@ -91,7 +92,7 @@ export function DemoControls({
   onReset: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2.5 rounded-2xl bg-black/50 p-3 sm:px-5 sm:py-3 text-lg text-white backdrop-blur-md border border-white/15 shadow-2xl select-none">
+    <div className="flex flex-wrap items-center gap-2.5 rounded-2xl bg-black/50 p-2.5 sm:px-4 sm:py-2.5 text-base text-white backdrop-blur-md border border-white/15 shadow-2xl select-none">
       <span className="font-semibold text-amber-300 flex items-center gap-1">
         <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
         Fast-Forward:
@@ -104,9 +105,9 @@ export function DemoControls({
           step={0.125}
           value={daysPerSecond}
           onChange={(e) => onSpeedChange(Number(e.target.value))}
-          className="accent-amber-400 cursor-pointer w-36 sm:w-40"
+          className="accent-amber-400 cursor-pointer w-28 sm:w-36"
         />
-        <span className="font-mono text-[17px] text-white/80 w-24">
+        <span className="font-mono text-[15px] text-white/80 w-20">
           {Number.isInteger(daysPerSecond) ? daysPerSecond.toFixed(1) : String(daysPerSecond)}{" "}
           d/s
         </span>
@@ -114,7 +115,7 @@ export function DemoControls({
       <button
         type="button"
         onClick={onReset}
-        className="rounded-full bg-white/15 hover:bg-white/25 px-3.5 py-1.5 text-[17px] font-medium text-white transition active:scale-95"
+        className="rounded-full bg-white/15 hover:bg-white/25 px-3 py-1 text-[15px] font-medium text-white transition active:scale-95"
       >
         Reset Jan 1
       </button>
