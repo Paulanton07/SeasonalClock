@@ -11,18 +11,19 @@ import {
   orbitPathPoints,
   orbitPositionForDay,
 } from "../lib/orbit";
-import { SEASON_ANCHORS, dominantSeason, getSeasonWeights } from "../lib/seasonBlend";
+import { getSeasonStartDays, dominantSeason, getSeasonWeights } from "../lib/seasonBlend";
 import { SEASON_PALETTES } from "../lib/seasonPalette";
-import type { Season } from "../lib/clockMath";
+import type { Hemisphere, Season } from "../lib/clockMath";
 
 const A = 60; // semi-major axis, viewBox units
 const VIEW_HALF = 100;
 
 interface Props {
   now: Date;
+  hemisphere: Hemisphere;
 }
 
-export default function OrbitTracker({ now }: Props) {
+export default function OrbitTracker({ now, hemisphere }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [previewDay, setPreviewDay] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -43,7 +44,7 @@ export default function OrbitTracker({ now }: Props) {
   const periPos = orbitPositionForDay(PERIHELION_DAY, A);
   const apheliaPos = orbitPositionForDay(APHELION_DAY, A);
 
-  const seasonPoints = (Object.entries(SEASON_ANCHORS) as [Season, number][]).map(
+  const seasonPoints = (Object.entries(getSeasonStartDays(hemisphere)) as [Season, number][]).map(
     ([season, anchorDay]) => ({
       season,
       color: SEASON_PALETTES[season].grass,
@@ -52,7 +53,7 @@ export default function OrbitTracker({ now }: Props) {
   );
 
   const previewDate = dateFromDayOfYear(displayDay, now.getFullYear());
-  const weights = getSeasonWeights(previewDate);
+  const weights = getSeasonWeights(previewDate, hemisphere);
   const season = dominantSeason(weights);
   const dateLabel = previewDate.toLocaleDateString(undefined, {
     month: "long",

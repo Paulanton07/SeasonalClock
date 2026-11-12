@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import type { Reminder } from "../types";
 import {
   angleForDate,
+  angleForHoursSinceNoon,
   pointOnCircle,
   smoothstep,
+  type Hemisphere,
   type Season,
 } from "../lib/clockMath";
 import { getSeasonWeights, blendColors, mixHex } from "../lib/seasonBlend";
@@ -126,9 +128,10 @@ function paletteChannel(field: keyof (typeof SEASON_PALETTES)["spring"]) {
 interface Props {
   now: Date;
   reminders: Reminder[];
+  hemisphere: Hemisphere;
 }
 
-export default function SeasonalClockFace({ now, reminders }: Props) {
+export default function SeasonalClockFace({ now, reminders, hemisphere }: Props) {
   const { ref, dimensions } = useContainerDimensions<HTMLDivElement>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -140,22 +143,35 @@ export default function SeasonalClockFace({ now, reminders }: Props) {
   const horizonY = Math.round(height * 0.5);
 
   // Responsive radius: maximizes the dial on both portrait and landscape screens
-  // leaving comfortable room for markers and floating HUD badges
+  // while leaving room for the (large) hour badges and the floating HUD
+  const isNarrow = width < 500;
+  const markerOffset = isNarrow ? 46 : 52;
+  const cardinalBadgeW = isNarrow ? 76 : 84;
+  const cardinalBadgeH = isNarrow ? 40 : 42;
+  const plainBadgeW = isNarrow ? 58 : 66;
+  const plainBadgeH = isNarrow ? 28 : 30;
+  const hudReserve = isNarrow ? 150 : 100;
   const trackRadius = useMemo(() => {
-    const maxRadius = Math.min(width * 0.38, height * 0.34, 420);
-    return Math.max(120, Math.round(maxRadius));
-  }, [width, height]);
+    const maxRadius = Math.min(
+      width * 0.38,
+      height * 0.34,
+      420,
+      width / 2 - markerOffset - cardinalBadgeW / 2 - 6,
+      height / 2 - markerOffset - cardinalBadgeH / 2 - hudReserve,
+    );
+    return Math.max(80, Math.round(maxRadius));
+  }, [width, height, markerOffset, cardinalBadgeW, cardinalBadgeH, hudReserve]);
 
   const sunRadius = Math.max(16, Math.min(26, Math.round(trackRadius * 0.085)));
   const dotRadius = Math.max(8, Math.min(13, Math.round(trackRadius * 0.045)));
   const hitRadius = Math.max(22, dotRadius * 2);
   const twilightBand = Math.max(25, Math.round(height * 0.05));
 
-  const weights = useMemo(() => getSeasonWeights(now), [now]);
+  const weights = useMemo(() => getSeasonWeights(now, hemisphere), [now, hemisphere]);
 
   const sunPoint = useMemo(
-    () => pointOnCircle(centerX, horizonY, trackRadius, angleForDate(now)),
-    [centerX, horizonY, trackRadius, now],
+    () => pointOnCircle(centerX, horizonY, trackRadius, angleForDate(now, hemisphere)),
+    [centerX, horizonY, trackRadius, now, hemisphere],
   );
 
   // Continuous 0..1 night factor with a soft twilight fade around the horizon
@@ -188,11 +204,11 @@ export default function SeasonalClockFace({ now, reminders }: Props) {
           centerX,
           horizonY,
           trackRadius,
-          angleForDate(new Date(r.eventTime)),
+          angleForDate(new Date(r.eventTime), hemisphere),
         );
         return { reminder: r, point };
       }),
-    [reminders, centerX, horizonY, trackRadius],
+    [reminders, centerX, horizonY, trackRadius, hemisphere],
   );
 
   const selected = reminderPoints.find((r) => r.reminder.id === selectedId);
@@ -225,13 +241,13 @@ export default function SeasonalClockFace({ now, reminders }: Props) {
   // 24-hour tick divisions (15 deg each)
   const hourTicks = useMemo(() => {
     return Array.from({ length: 24 }, (_, i) => {
-      const angle = -90 - i * 15;
+      const angle = angleForHoursSinceNoon(i, hemisphere);
       const isMajor = i % 3 === 0;
       const inner = pointOnCircle(centerX, horizonY, trackRadius - (isMajor ? 8 : 4), angle);
       const outer = pointOnCircle(centerX, horizonY, trackRadius + (isMajor ? 8 : 4), angle);
       return { id: i, inner, outer, isMajor };
     });
-  }, [centerX, horizonY, trackRadius]);
+  }, [centerX, horizonY, trackRadius, hemisphere]);
 
   return (
     <div ref={ref} className="relative h-full w-full overflow-hidden select-none">
@@ -582,17 +598,17 @@ export default function SeasonalClockFace({ now, reminders }: Props) {
 
         {/* 4. Hour Markers & Labels (High contrast badges) */}
         {HOUR_MARKERS.map((marker) => {
-          const markerRadius = trackRadius + (width < 500 ? 20 : 26);
+          const markerRadius = trackRadius + markerOffset;
           const anglePoint = pointOnCircle(
             centerX,
             horizonY,
             markerRadius,
-            -90 - marker.hoursSinceNoon * 15,
+            angleForHoursSinceNoon(marker.hoursSinceNoon, hemisphere),
           );
 
-          const isCardinals = marker.subLabel !== "";
-          const badgeW = isCardinals && marker.subLabel ? 56 : 44;
-          const badgeH = isCardinals && marker.subLabel ? 28 : 20;
+          const hasSubLabel = marker.subLabel !== "";
+          const badgeW = hasSubLabel ? cardinalBadgeW : plainBadgeW;
+          const badgeH = hasSubLabel ? cardinalBadgeH : plainBadgeH;
 
           return (
             <g
@@ -613,8 +629,8 @@ export default function SeasonalClockFace({ now, reminders }: Props) {
               />
               <text
                 x={0}
-                y={marker.subLabel ? -3 : 0}
-                fontSize={width < 500 ? 11 : 12}
+                y={marker.subLabel ? -6 : 0}
+                fontSize={isNarrow ? 17 : 18}
                 fontWeight="700"
                 fill="#ffffff"
                 textAnchor="middle"
@@ -626,8 +642,8 @@ export default function SeasonalClockFace({ now, reminders }: Props) {
               {marker.subLabel && (
                 <text
                   x={0}
-                  y={8}
-                  fontSize={8}
+                  y={11}
+                  fontSize={12}
                   fontWeight="500"
                   fill="#93c5fd"
                   textAnchor="middle"

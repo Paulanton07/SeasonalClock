@@ -1,12 +1,50 @@
-import type { Season } from "./clockMath";
+import type { Hemisphere, Season } from "./clockMath";
 
-/** Anchor points on real solstices/equinoxes (approximate, Northern hemisphere). */
-export const SEASON_ANCHORS: Record<Season, number> = {
+const OPPOSITE_SEASON: Record<Season, Season> = {
+  spring: "autumn",
+  summer: "winter",
+  autumn: "spring",
+  winter: "summer",
+};
+
+/**
+ * Mid-point of each meteorological season (Northern hemisphere). The dominant
+ * season flips halfway between neighbours, i.e. on 1 Mar / 1 Jun / 1 Sep / 1 Dec.
+ */
+const NORTH_SEASON_CENTERS: Record<Season, number> = {
+  spring: 105, // ~Apr 15
+  summer: 198, // ~Jul 17
+  autumn: 289, // ~Oct 16
+  winter: 15, // ~Jan 15
+};
+
+/** Day of year when each season begins astronomically (equinoxes/solstices), Northern hemisphere. */
+const NORTH_SEASON_STARTS: Record<Season, number> = {
   spring: 80, // ~Mar 21 equinox
   summer: 172, // ~Jun 21 solstice
   autumn: 266, // ~Sep 23 equinox
   winter: 356, // ~Dec 21 solstice
 };
+
+/** Seasons are six months out of phase between the hemispheres. */
+function forHemisphere(
+  northValues: Record<Season, number>,
+  hemisphere: Hemisphere,
+): Record<Season, number> {
+  if (hemisphere === "north") return northValues;
+  return Object.fromEntries(
+    (Object.keys(northValues) as Season[]).map((s) => [s, northValues[OPPOSITE_SEASON[s]]]),
+  ) as Record<Season, number>;
+}
+
+export function getSeasonCenters(hemisphere: Hemisphere): Record<Season, number> {
+  return forHemisphere(NORTH_SEASON_CENTERS, hemisphere);
+}
+
+/** Astronomical start of each season; used to place the season markers on the orbit. */
+export function getSeasonStartDays(hemisphere: Hemisphere): Record<Season, number> {
+  return forHemisphere(NORTH_SEASON_STARTS, hemisphere);
+}
 
 const YEAR_LENGTH = 365;
 const HALF_YEAR = YEAR_LENGTH / 2;
@@ -25,17 +63,17 @@ function circularDistance(a: number, b: number): number {
   return Math.min(d, YEAR_LENGTH - d);
 }
 
-/** Raised-cosine bump: 1 at the anchor, 0.5 at a neighbouring anchor (~91 days), 0 at the opposite anchor. */
+/** Raised-cosine bump: 1 at the season centre, 0.5 at a neighbouring centre (~91 days), 0 at the opposite one. */
 function seasonKernel(distance: number): number {
   if (distance >= HALF_YEAR) return 0;
   return (Math.cos((distance / HALF_YEAR) * Math.PI) + 1) / 2;
 }
 
 /** Continuous per-season blend weights (sum to 1) for a given date. */
-export function getSeasonWeights(date: Date): Record<Season, number> {
+export function getSeasonWeights(date: Date, hemisphere: Hemisphere): Record<Season, number> {
   const day = dayOfYear(date);
   const raw = Object.fromEntries(
-    (Object.entries(SEASON_ANCHORS) as [Season, number][]).map(
+    (Object.entries(getSeasonCenters(hemisphere)) as [Season, number][]).map(
       ([season, anchor]) => [season, seasonKernel(circularDistance(day, anchor))],
     ),
   ) as Record<Season, number>;

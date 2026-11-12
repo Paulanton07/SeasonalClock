@@ -6,7 +6,7 @@ export interface Reminder {
   eventTime: string;
 }
 
-export type { Season } from "./lib/clockMath";
+export type { Season, Hemisphere } from "./lib/clockMath";
 export type {
   SeasonPalette,
   FlowerColorConfig,
