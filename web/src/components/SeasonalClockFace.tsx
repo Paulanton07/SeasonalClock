@@ -31,15 +31,16 @@ import {
 import { useContainerDimensions } from "../hooks/useContainerDimensions";
 import ReminderPopover from "./ReminderPopover";
 
-const HOUR_MARKERS = [
-  { hoursSinceNoon: 0, label: "12PM", subLabel: "Noon" },
-  { hoursSinceNoon: 3, label: "3PM", subLabel: "" },
-  { hoursSinceNoon: 6, label: "6PM", subLabel: "Sunset" },
-  { hoursSinceNoon: 9, label: "9PM", subLabel: "" },
-  { hoursSinceNoon: 12, label: "12AM", subLabel: "Midnight" },
-  { hoursSinceNoon: 15, label: "3AM", subLabel: "" },
-  { hoursSinceNoon: 18, label: "6AM", subLabel: "Sunrise" },
-  { hoursSinceNoon: 21, label: "9AM", subLabel: "" },
+// Numbered every 3 hours; the hours in between get tick marks only.
+const HOUR_NUMERALS = [
+  { hoursSinceNoon: 0, label: "12" },
+  { hoursSinceNoon: 3, label: "3" },
+  { hoursSinceNoon: 6, label: "6" },
+  { hoursSinceNoon: 9, label: "9" },
+  { hoursSinceNoon: 12, label: "12" },
+  { hoursSinceNoon: 15, label: "3" },
+  { hoursSinceNoon: 18, label: "6" },
+  { hoursSinceNoon: 21, label: "9" },
 ];
 
 function generateGrassStalksPath(
@@ -150,34 +151,35 @@ export default function SeasonalClockFace({
   // Horizon sits at mid-height, nudged down when the header leaves more room above than below
   const centerX = width / 2;
 
-  // Responsive radius: fills the free space between header and footer, limited by the hour badges
+  // Responsive radius: fills the free space between header and footer. The hour numerals sit
+  // inside the track, so the only things outside it are the sun and the E / W labels.
   const isNarrow = width < 500;
-  const markerOffset = isNarrow ? 34 : 36;
-  const cardinalBadgeW = isNarrow ? 48 : 52;
-  const cardinalBadgeH = isNarrow ? 25 : 27;
-  const plainBadgeW = isNarrow ? 36 : 40;
-  const plainBadgeH = isNarrow ? 18 : 19;
+  const sunMargin = 32;
+  const compassReserve = isNarrow ? 28 : 36;
   const bandTop = topInset + 8;
   // Footer buttons sit at the screen corners, so wide screens only need a small gap at the centre
   const bandBottom = height - (width >= 700 ? 20 : 76);
-  const horizonY = Math.round(
-    Math.min(height * 0.58, Math.max(height * 0.5, (bandTop + bandBottom) / 2)),
-  );
+  const horizonY = Math.round(Math.max(height * 0.5, (bandTop + bandBottom) / 2));
   const trackRadius = useMemo(() => {
-    const edge = markerOffset + cardinalBadgeH / 2;
     const maxRadius = Math.min(
-      width / 2 - markerOffset - cardinalBadgeW / 2 - 4,
-      horizonY - edge - bandTop,
-      bandBottom - horizonY - edge,
+      width / 2 - sunMargin - compassReserve,
+      horizonY - sunMargin - bandTop,
+      bandBottom - horizonY - sunMargin,
       700,
     );
     return Math.max(60, Math.round(maxRadius));
-  }, [width, markerOffset, cardinalBadgeW, cardinalBadgeH, horizonY, bandTop, bandBottom]);
+  }, [width, sunMargin, compassReserve, horizonY, bandTop, bandBottom]);
+
+  const numeralFontSize = Math.max(18, Math.min(34, Math.round(trackRadius * 0.11)));
+  const majorTickLen = Math.max(10, Math.round(trackRadius * 0.045));
+  const minorTickLen = Math.round(majorTickLen * 0.6);
+  const numeralRadius = trackRadius - majorTickLen - numeralFontSize * 0.7 - 4;
+  const compassFontSize = isNarrow ? 16 : 20;
+  const compassRadius = trackRadius + sunMargin + compassReserve / 2;
 
   const sunRadius = Math.max(16, Math.min(26, Math.round(trackRadius * 0.085)));
   const dotRadius = Math.max(8, Math.min(13, Math.round(trackRadius * 0.045)));
   const hitRadius = Math.max(22, dotRadius * 2);
-  const twilightBand = Math.max(25, Math.round(height * 0.05));
 
   const weights = useMemo(() => getSeasonWeights(now, hemisphere), [now, hemisphere]);
 
@@ -186,8 +188,10 @@ export default function SeasonalClockFace({
     [centerX, horizonY, trackRadius, now, hemisphere],
   );
 
-  // Continuous 0..1 night factor with a soft twilight fade around the horizon
-  const nightFactor = smoothstep(-twilightBand, twilightBand, sunPoint.y - horizonY);
+  // Sun height above the horizon as a fraction of the track radius (negative = below).
+  // The sky lightens gradually over the morning rather than switching at the horizon.
+  const sunElevation = (horizonY - sunPoint.y) / trackRadius;
+  const nightFactor = 1 - smoothstep(-0.1, 0.55, sunElevation);
 
   const daySkyTop = useMemo(() => blendColors(weights, paletteChannel("skyTop")), [weights]);
   const daySkyBottom = useMemo(() => blendColors(weights, paletteChannel("skyBottom")), [weights]);
@@ -255,11 +259,38 @@ export default function SeasonalClockFace({
     return Array.from({ length: 24 }, (_, i) => {
       const angle = angleForHoursSinceNoon(i, hemisphere);
       const isMajor = i % 3 === 0;
-      const inner = pointOnCircle(centerX, horizonY, trackRadius - (isMajor ? 8 : 4), angle);
-      const outer = pointOnCircle(centerX, horizonY, trackRadius + (isMajor ? 8 : 4), angle);
+      const inner = pointOnCircle(
+        centerX,
+        horizonY,
+        trackRadius - (isMajor ? majorTickLen : minorTickLen),
+        angle,
+      );
+      const outer = pointOnCircle(centerX, horizonY, trackRadius, angle);
       return { id: i, inner, outer, isMajor };
     });
-  }, [centerX, horizonY, trackRadius, hemisphere]);
+  }, [centerX, horizonY, trackRadius, hemisphere, majorTickLen, minorTickLen]);
+
+  // 6am is where the sun rises: east. 6pm is west.
+  const eastPoint = pointOnCircle(
+    centerX,
+    horizonY,
+    compassRadius,
+    angleForHoursSinceNoon(18, hemisphere),
+  );
+  const westPoint = pointOnCircle(
+    centerX,
+    horizonY,
+    compassRadius,
+    angleForHoursSinceNoon(6, hemisphere),
+  );
+
+  // Orange dawn glow that starts on the east horizon, then fades as the sun climbs
+  const eastIsRight = eastPoint.x > centerX;
+  const sunOnEastSide = (sunPoint.x - centerX) * (eastPoint.x - centerX) > 0;
+  const sunriseGlow = sunOnEastSide
+    ? smoothstep(-0.2, 0, sunElevation) * (1 - smoothstep(0.1, 0.7, sunElevation))
+    : 0;
+  const glowX = eastIsRight ? width : 0;
 
   return (
     <div ref={ref} className="relative h-full w-full overflow-hidden select-none">
@@ -288,13 +319,30 @@ export default function SeasonalClockFace({
             <stop offset="40%" stopColor={sunColor} stopOpacity="0.7" />
             <stop offset="100%" stopColor={sunColor} stopOpacity="0" />
           </radialGradient>
-          <filter id="badgeShadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.7" />
-          </filter>
+          <radialGradient
+            id="sunriseGlow"
+            gradientUnits="userSpaceOnUse"
+            cx={glowX}
+            cy={horizonY}
+            r={Math.max(width * 0.85, horizonY)}
+          >
+            <stop offset="0%" stopColor="#ff7a1a" stopOpacity="0.95" />
+            <stop offset="30%" stopColor="#ff8f3a" stopOpacity="0.6" />
+            <stop offset="65%" stopColor="#ffb066" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#ffb066" stopOpacity="0" />
+          </radialGradient>
         </defs>
 
         {/* 1. Sky layer (spans from top to horizon) */}
         <rect x={0} y={0} width={width} height={horizonY} fill="url(#skyGrad)" />
+        <rect
+          x={0}
+          y={0}
+          width={width}
+          height={horizonY}
+          fill="url(#sunriseGlow)"
+          opacity={sunriseGlow}
+        />
 
         {/* Stars fade in during night across entire sky */}
         <g opacity={nightFactor}>
@@ -573,8 +621,8 @@ export default function SeasonalClockFace({
             x2={tick.outer.x}
             y2={tick.outer.y}
             stroke="#ffffff"
-            strokeOpacity={tick.isMajor ? 0.75 : 0.3}
-            strokeWidth={tick.isMajor ? 2 : 1}
+            strokeOpacity={tick.isMajor ? 0.9 : 0.65}
+            strokeWidth={tick.isMajor ? 2.5 : 1.5}
           />
         ))}
 
@@ -608,66 +656,65 @@ export default function SeasonalClockFace({
           strokeDasharray="4 4"
         />
 
-        {/* 4. Hour Markers & Labels (High contrast badges) */}
-        {HOUR_MARKERS.map((marker) => {
-          const markerRadius = trackRadius + markerOffset;
-          const anglePoint = pointOnCircle(
+        {/* 4. Hour numerals, inside the track (outlined so they read over sky and grass) */}
+        {HOUR_NUMERALS.map((marker) => {
+          const p = pointOnCircle(
             centerX,
             horizonY,
-            markerRadius,
+            numeralRadius,
             angleForHoursSinceNoon(marker.hoursSinceNoon, hemisphere),
           );
-
-          const hasSubLabel = marker.subLabel !== "";
-          const badgeW = hasSubLabel ? cardinalBadgeW : plainBadgeW;
-          const badgeH = hasSubLabel ? cardinalBadgeH : plainBadgeH;
-
           return (
-            <g
-              key={marker.label}
-              transform={`translate(${anglePoint.x}, ${anglePoint.y})`}
-              filter="url(#badgeShadow)"
+            <text
+              key={marker.hoursSinceNoon}
+              x={p.x}
+              y={p.y}
+              fontSize={numeralFontSize}
+              fontWeight="700"
+              fill="#ffffff"
+              stroke="rgba(10, 15, 26, 0.75)"
+              strokeWidth={4}
+              strokeLinejoin="round"
+              paintOrder="stroke"
+              textAnchor="middle"
+              dominantBaseline="central"
+              pointerEvents="none"
+              className="font-mono"
             >
-              {/* Semi-transparent dark backing pill for readability over sky/soil */}
-              <rect
-                x={-badgeW / 2}
-                y={-badgeH / 2}
-                width={badgeW}
-                height={badgeH}
-                rx={Math.round(badgeH / 2)}
-                fill="rgba(10, 15, 26, 0.65)"
-                stroke="rgba(255, 255, 255, 0.2)"
-                strokeWidth={1}
-              />
-              <text
-                x={0}
-                y={marker.subLabel ? -3.5 : 0}
-                fontSize={isNarrow ? 10.5 : 11}
-                fontWeight="700"
-                fill="#ffffff"
-                textAnchor="middle"
-                dominantBaseline="central"
-                className="font-mono tracking-tight"
-              >
-                {marker.label}
-              </text>
-              {marker.subLabel && (
-                <text
-                  x={0}
-                  y={7}
-                  fontSize={7}
-                  fontWeight="500"
-                  fill="#93c5fd"
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  className="uppercase tracking-wider"
-                >
-                  {marker.subLabel}
-                </text>
-              )}
-            </g>
+              {marker.label}
+            </text>
           );
         })}
+
+        {/* East (sunrise side) and west compass labels outside the track */}
+        <g
+          fontWeight="700"
+          fill="#ffffff"
+          stroke="rgba(10, 15, 26, 0.75)"
+          strokeWidth={3.5}
+          strokeLinejoin="round"
+          paintOrder="stroke"
+          textAnchor="middle"
+          dominantBaseline="central"
+          pointerEvents="none"
+        >
+          <text x={eastPoint.x} y={horizonY - (isNarrow ? 5 : 6)} fontSize={compassFontSize}>
+            E
+          </text>
+          <text
+            x={eastPoint.x}
+            y={horizonY + (isNarrow ? 8 : 10)}
+            fontSize={isNarrow ? 7.5 : 9}
+            fill="#fcd34d"
+            strokeWidth={3}
+            className="uppercase tracking-wider"
+          >
+            Sunrise
+          </text>
+          <text x={westPoint.x} y={horizonY} fontSize={compassFontSize}>
+            W
+          </text>
+        </g>
 
         {/* 5. Sun with Glowing Aura and Flare Rings */}
         {/* Soft atmospheric halo */}
